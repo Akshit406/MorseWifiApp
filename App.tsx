@@ -1,131 +1,167 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import React, { useState } from "react";
 import {
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
   View,
-} from 'react-native';
+  Text,
+  TextInput,
+  Button,
+  PermissionsAndroid,
+  Platform,
+  Alert,
+  StyleSheet,
+} from "react-native";
+import WifiManager from "react-native-wifi-reborn";
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+export default function App() {
+  const [message, setMessage] = useState<string>("");
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+  const requestPermissions = async (): Promise<boolean> => {
+    if (Platform.OS === "android") {
+      const granted = await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
-
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+      ]);
+      return Object.values(granted).every(
+        (g) => g === PermissionsAndroid.RESULTS.GRANTED
+      );
+    }
+    return true;
   };
 
-  /*
-   * To keep the template simple and small we're adding padding to prevent view
-   * from rendering under the System UI.
-   * For bigger apps the recommendation is to use `react-native-safe-area-context`:
-   * https://github.com/AppAndFlow/react-native-safe-area-context
-   *
-   * You can read more about it here:
-   * https://github.com/react-native-community/discussions-and-proposals/discussions/827
-   */
-  const safePadding = '5%';
+  const calculateMorseDelay = (text: string): number => {
+    const unit = 200; // ms per dot unit
+    const morseMap: Record<string, string> = {
+      A: ".-",
+      B: "-...",
+      C: "-.-.",
+      D: "-..",
+      E: ".",
+      F: "..-.",
+      G: "--.",
+      H: "....",
+      I: "..",
+      J: ".---",
+      K: "-.-",
+      L: ".-..",
+      M: "--",
+      N: "-.",
+      O: "---",
+      P: ".--.",
+      Q: "--.-",
+      R: ".-.",
+      S: "...",
+      T: "-",
+      U: "..-",
+      V: "...-",
+      W: ".--",
+      X: "-..-",
+      Y: "-.--",
+      Z: "--..",
+      "0": "-----",
+      "1": ".----",
+      "2": "..---",
+      "3": "...--",
+      "4": "....-",
+      "5": ".....",
+      "6": "-....",
+      "7": "--...",
+      "8": "---..",
+      "9": "----.",
+    };
+
+    let totalUnits = 0;
+    for (const char of text.toUpperCase()) {
+      const morse = morseMap[char];
+      if (morse) {
+        for (const symbol of morse) {
+          totalUnits += symbol === "." ? 1 : 3; // dot=1, dash=3 units
+          totalUnits += 1; // space between parts of a letter
+        }
+        totalUnits += 2; // space between letters
+      }
+    }
+    return totalUnits * unit;
+  };
+
+  const sendMessage = async () => {
+    if (!message.trim()) {
+      Alert.alert("Please enter a message.");
+      return;
+    }
+
+    const hasPerm = await requestPermissions();
+    if (!hasPerm) {
+      Alert.alert("Permissions required.");
+      return;
+    }
+
+    try {
+      // Connect to morse transmitter Wi-Fi
+      await WifiManager.connectToProtectedSSID(
+        "morse transmitter",
+        "12345678",
+        false,
+        false
+      );
+      Alert.alert("Connected to morse transmitter");
+
+      // Send message to transmitter
+      const url1 = `http://192.168.4.1/send?msg=${encodeURIComponent(message)}`;
+      await fetch(url1);
+      Alert.alert("Message sent to transmitter");
+
+      // Connect to iphone 17 Wi-Fi
+      await WifiManager.connectToProtectedSSID(
+        "iphone 17",
+        "ballu1234",
+        false,
+        false
+      );
+      Alert.alert("");
+
+      // Wait delay based on Morse code timing
+      const delay = calculateMorseDelay(message);
+      console.log("Waiting delay (ms):", delay);
+      await new Promise((res) => setTimeout(res, delay));
+
+      // Send message again to receiver
+      const url2 = `http://192.168.4.1/send?msg=${encodeURIComponent(message)}`;
+      await fetch(url2);
+      Alert.alert("Message sent to receiver");
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Unknown error");
+      console.error(error);
+    }
+  };
 
   return (
-    <View style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
+    <View style={styles.container}>
+      <Text style={styles.label}>MORSE CODE TRANSMITER</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Type message here"
+        value={message}
+        onChangeText={setMessage}
       />
-      <ScrollView
-        style={backgroundStyle}>
-        <View style={{paddingRight: safePadding}}>
-          <Header/>
-        </View>
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-            paddingHorizontal: safePadding,
-            paddingBottom: safePadding,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
+      <Button title="Send Morse Message" onPress={sendMessage} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 20,
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
+  label: {
     fontSize: 18,
-    fontWeight: '400',
+    marginBottom: 10,
   },
-  highlight: {
-    fontWeight: '700',
+  input: {
+    borderWidth: 1,
+    borderColor: "#666",
+    padding: 10,
+    marginBottom: 20,
+    borderRadius: 6,
   },
 });
-
-export default App;
